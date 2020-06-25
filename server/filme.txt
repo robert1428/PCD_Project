@@ -1,0 +1,7 @@
+1. Timisoara 42.53423 42.312343
+2. Constanta
+3. Cluj-Napoca 42.53423 42.312343
+4. Brasov
+5. Oradea
+6. Iasi.
+7. Craiova
