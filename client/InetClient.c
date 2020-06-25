@@ -1,6 +1,4 @@
-//  **************************************************
-//  *  pcdClient.c - inet pcd client implementation  *
-//  **************************************************
+
 
 #include <stdio.h>
 
@@ -22,27 +20,50 @@
 
 #define MAX_MSG 512
 
-# define MAXCHAR 128
 
 # define PORT 18081
+int option3Selected;
+
+void recvFile(int sockfd) 
+{ 
+ char buff[1024]; 
+ 
+ FILE *fp;
+ fp=fopen("raport","w"); 
+ 
+ if( fp == NULL ){
+  printf("Error IN Opening File ");
+  return ;
+ }
+ 
+ while( read(sockfd,buff,1024) > 1 ){
+  fprintf(fp,"%s",buff);
+ 
+}
+
+ 
+ printf("File received successfully !! \n");
+ printf("New File created is raport! \n");
+ fclose(fp);
+}
 
 int main(int argc, char * argv[]) {
 
   printf("\nINET Client Program\n");
 
   int clientFd;
-  int rc;
+  int receiveStatus;
   struct sockaddr_in serverAddr;
  
 
   int result;
   char buf[1024];
-  int numBytes;
+  int sendStatus;
   char choice[128];
   char mesaj[128];
   char buffer[512];
 
-  // create socket for client.
+
   clientFd = socket(AF_INET, SOCK_STREAM, 0);
 
   if (clientFd < 0) {
@@ -67,19 +88,13 @@ int main(int argc, char * argv[]) {
   while (1) {
 
     printf("Aplicatie prognoza meteo\n");
-    printf("1 - Afiseaza locatiile disponibile\n"); //afisare cand ma conectez
-    printf("2 - Afiseaza prognoza meteo pentru o locatie\n"); //selecteaza film + rezervare
+    printf("1 - Afiseaza locatiile disponibile\n"); 
+    printf("2 - Afiseaza prognoza meteo pentru o locatie\n"); 
     printf("3 - Descarca raport detaliat\n");
     printf("0 - Terminare program.\n");
     printf("Your choice: ");
     scanf("%c", choice);
-    // if ((alegere[0] < '0' || alegere[0] > '3'))
-    // {
-    //     printf("\n Alegere incorecta. Incearca din nou\n\n");
-    // }
 
-    // proceseaza o alegere corecta. in cazurile 1-3 se creeaza
-    // un mesaj care e trimis serverului de administrare
 
     switch (choice[0]) {
     case '1':
@@ -100,6 +115,7 @@ int main(int argc, char * argv[]) {
       scanf("%s", choice);
       printf("\n-------------------------------------------\n");
       strcat(mesaj, choice);
+      option3Selected = 1;
       break;
     
     case '0':
@@ -111,21 +127,27 @@ int main(int argc, char * argv[]) {
       break;
     }
 
-    numBytes = send(clientFd, mesaj, strlen(mesaj), 0);
-    if (numBytes <= 0) {
+    sendStatus = send(clientFd, mesaj, strlen(mesaj), 0);
+    if (sendStatus <= 0) {
       perror("send() failed");
     }
 
-    rc = recv(clientFd, buffer, MAX_MSG, 0);
-    if (rc < 0) {
+    receiveStatus = recv(clientFd, buffer, MAX_MSG, 0);
+    if (receiveStatus < 0) {
       perror("recv() failed..");
-    } else if (rc == 0) {
+    } else if (receiveStatus == 0) {
       printf("Deconectat de la serverul UNIX.. \n");
     } else {
 
-      buffer[rc] = 0;
-      printf("\nServer response: %s\n\n", buffer);
+      buffer[receiveStatus] = 0;
+        if (!option3Selected){
+         printf("\nServer response: %s\n\n", buffer);
+      }
+      else {
+        recvFile(clientFd);
+      }
     }
+
 
     printf("\nPress any key to return to menu\n");
     getchar();

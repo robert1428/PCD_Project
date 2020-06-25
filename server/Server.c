@@ -37,53 +37,44 @@
 #include <arpa/inet.h>
 
 #include <json-c/json.h>
+
 #include <stdio.h>
 
 
+#include <fcntl.h>
 
 
-//Fisierul prin care serverul si clientul de administrare vor comunica:
+
 #define UNIX_FILE "/tmp/unixFile"
 
-#define INETPORT 18081
-#define SOAPPORT 18082
-#define UNIXSOCKET "/tmp/unixds"
-//Clientii soap se pot conecta la server la portul 5555:
-#define SOAP_PORT 5555
+# define INETPORT 18081
+# define SOAPPORT 18082
+# define UNIXSOCKET "/tmp/unixds"
 
-//numar maxim de filme intr-o lista(filme+zile+ore)
-#define MAXMOVIES 256
 
-//numarul maxim de ip-uri blocate
-#define MAXBLOCKED 128
-//numar maxim de clienti
-#define NUM_MAX_CLIENTS 256
+# define MAXBLOCKED 128
 
-#define MAXCHAR 256
+# define NUM_MAX_CLIENTS 256
 
-#define DARK_SKY_API_URL "https://api.darksky.net/forecast/32f1f87b5680f82c0b095474b9ce7e66/"
+# define MAXCHAR 256
+
+# define DARK_SKY_API_URL "https://api.darksky.net/forecast/32f1f87b5680f82c0b095474b9ce7e66/"
 typedef struct {
-  int fd; // identificator de socket din interiorul programului
+  int fd; 
   char IP[16];
   __uint16_t port;
 }
 inetClient;
 
 inetClient clientList[512];
-int maxClient; //ultimul index din lista clientilor
-
-//fisierul cu filme
-FILE * fileMovies;
-char movieList[100][MAXMOVIES];
-int nr_movies = 0;
-
+int maxClient; 
 
 
 struct Location {
-   char name[40];  
-   double lon;
-   double lat;
-  
+  char name[40];
+  double lon;
+  double lat;
+
 };
 
 struct Forecast {
@@ -93,88 +84,74 @@ struct Forecast {
   int uvIndex;
   double windSpeed;
 
-
 };
 
-//void initMovieList();
-//void initMovieArray();
 
-//fisierul cu ip-uri blocate:
+
 FILE * fileBlocked;
 char blockedIps[NUM_MAX_CLIENTS][16]; //lista de clienti blocati
 int numBlocked = 0;
 
-//fisierul cu rezervari
-typedef struct rezervari {
-  char name[30];
-  int movie;
-  int hour;
-};
-int nr_rezervari = 0;
-struct rezervari rezervariArray[20];
-void initRezervationArray();
-
-//functii:
 int processUnixClientRequest(int bytes, char client[512], char mesaj[512]);
 int processClientRequest(int cliFd, char mesaj[512], char * msg);
-char* createStringFromLocationsFIle();
-struct Location createLocation (char* line);
-char* getNthLineFromFile (int lineNumber);
-void sendAPIRequest(char* coordinates);
+char * createStringFromLocationsFIle();
+struct Location createLocation(char * line);
+char * getNthLineFromFile(int lineNumber);
+void sendAPIRequest(char * coordinates);
 struct Forecast createForecast();
-char* createForecastString(struct Forecast forecast);
+char * createForecastString(struct Forecast forecast);
 void * unix_main(void * args) {
 
   printf("[+]UNIX server is running\n");
 
   int serverFd = -1, clientFd = -2;
   int error, nBytes, numSent;
-  char cmdClient[512]; // comanda de la client
-  char mesaj[512]; // mesaj catre client
+  char cmdClient[512]; 
+  char mesaj[512]; 
   struct sockaddr_un serverAddr;
 
-  // creeaza socket cu protocolul TCP
+
   serverFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
   if (serverFd < 0) {
     perror("UNIX socket() error..");
   }
 
-  memset( & serverAddr, 0, sizeof(serverAddr)); //initialize serverAddr
+  memset( & serverAddr, 0, sizeof(serverAddr)); 
   serverAddr.sun_family = AF_UNIX;
   strcpy(serverAddr.sun_path, UNIX_FILE);
 
-  //cu bind facem legatura dintre serverAddr si socket(serverFd)
+ 
   error = bind(serverFd, (struct sockaddr * ) & serverAddr, SUN_LEN( & serverAddr));
 
   if (error < 0) {
     perror("UNIX bind() error..");
   }
 
-  error = listen(serverFd, 10); // convertim socket-ul in modul ascultare, pot sa aibe maximum 10 conexiuni
+  error = listen(serverFd, 10); 
 
   if (error < 0) {
     perror("UNIX listen() error..");
   }
   int tries = 10;
   while (tries) {
-    //ascultam cererile de conectare doar daca clientFd < 0
+    
     if (clientFd < 0) {
-      if ((clientFd = accept(serverFd, NULL, NULL)) == -1) // accept returneaza urmatoarea conexiune existenta
+      if ((clientFd = accept(serverFd, NULL, NULL)) == -1) 
       {
         perror("UNIX accept() error..\n");
         break;
       }
-    } else //primeste comenzi de la administrator
+    } else 
     {
-      while ((nBytes = read(clientFd, cmdClient, sizeof(cmdClient))) > 0) // citeste mesajul de la client si il pune in buffer-ul cmd client
+      while ((nBytes = read(clientFd, cmdClient, sizeof(cmdClient))) > 0) 
       {
         cmdClient[nBytes] = 0;
-        printf("UNIX = read %d bytes: %s\n", nBytes, cmdClient); // buffer-ul cmdClient continte acum mesajul de la admin
+        printf("UNIX = read %d bytes: %s\n", nBytes, cmdClient); 
 
         int len = processUnixClientRequest(nBytes, cmdClient, mesaj);
 
-        numSent = send(clientFd, mesaj, len, 0); // trimite mesajul inapoi la client
+        numSent = send(clientFd, mesaj, len, 0); 
         if (numSent < 0) {
           perror("UNIX send() error..");
           break;
@@ -200,22 +177,21 @@ void * unix_main(void * args) {
   if (clientFd > 0)
     close(clientFd);
 
-  unlink(UNIX_FILE); //fisierul de comunicare este inchis
+  unlink(UNIX_FILE); 
 }
-//------------------------------------------------------------------
-// functie procesare comanda client administrare UNIX
+
 
 int processUnixClientRequest(int numChars, char * buffer, char * msg) {
   int cmdType = buffer[0];
   int numConnected = 0;
+  char temp[256];
   printf("\n UNIX = comanda primita = %s, type: %c.\n", buffer, cmdType);
-  bzero(msg, strlen(msg)); //msg este umplut cu strlen(msg) de zero
-  char temp[8], movie[128], ora1[128], ora2[128], ora3[128];
+  bzero(msg, strlen(msg)); 
   int i, theFd, found;
 
   switch (cmdType) {
-  case '1': //lista fd-uri clientilor
-    strcpy(msg, "1"); //seteaza tipul mesajului
+  case '1': 
+    strcpy(msg, "1"); 
     for (i = 0; i < maxClient; i++) {
       if (clientList[i].fd > 0) {
         strcat(msg, ":");
@@ -225,57 +201,35 @@ int processUnixClientRequest(int numChars, char * buffer, char * msg) {
       }
     }
     if (numConnected == 0)
-      strcat(msg, " - No INET client is connected.");
+      strcat(msg, " - No clients connected");
     break;
-  case '2': //afisare informatii despre client
-    strcpy(msg, "2");
-    //gaseste clientul cu fd-ul cerut, afiseaza info
-    theFd = atoi(buffer + 2);
-    for (i = 0; i < maxClient; i++) {
-      if (clientList[i].fd == theFd) {
-        strcat(msg, clientList[i].IP);
-        strcat(msg, ":");
-        snprintf(temp, 5, "%d", clientList[i].port);
-        strcat(msg, temp);
-        break;
-      }
-    }
-    break;
-  case '3': //deconectare client
-    strcpy(msg, "3");
-    theFd = atoi(buffer + 2);
-    found = 0;
-    for (i = 0; i < maxClient; i++) {
-      if (clientList[i].fd == theFd) {
-        close(clientList[i].fd);
-        found = 1;
-        break;
-      }
-    }
-    if (found)
-      strcat(msg, ": client disconnected.");
-    else
-      strcat(msg, ": client not found.");
-    break;
-  case '4':
-    strcpy(msg, "4");
+  case '2':
+    printf("%s\n", buffer);
 
-    sprintf(ora1, "%c%c%c%c%c", buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
-    sprintf(ora2, "%c%c%c%c%c", buffer[6], buffer[7], buffer[8], buffer[9], buffer[10]);
-    sprintf(ora3, "%c%c%c%c%c", buffer[11], buffer[12], buffer[13], buffer[14], buffer[15]);
-    strncpy(movie, buffer + 16, strlen(buffer));
-    printf("Ore: %s %s %s %s ", ora1, ora2, ora3, movie);
-    //saveMovie(movie, ora1, ora2, ora3, msg);
+    int fd = open("locations.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+
+    if (fd == -1) {
+      printf("Fisierul nu a putut fi deschis/creat!");
+      exit(1);
+    }
+
+    
+    write(fd, buffer, strlen(buffer));
+    strcat(msg, "Added Location");
+
+    close(fd);
+
     break;
+
   default:
-    //afisare mesaj eroare
-    printf("Command is invalid, it will be ignored..\n");
+   
+    printf("Command is invalid, it will be ignored\n");
     break;
   }
   printf("\nMessage for UNIX client: %s", msg);
   return strlen(msg);
 
-  return 0;
+  
 }
 
 void * inet_main(void * args) {
@@ -283,19 +237,17 @@ void * inet_main(void * args) {
   int serverFd, clientFd, error, i, maxFd, numReady, numBytes, numSent;
   fd_set readSet;
 
-  //declaram doua structuri pentru server si client pentru a salva datele celor doi
+  
   struct sockaddr_in
   serverAddr,
   clientAddr;
 
   socklen_t addr_size;
 
-  char mesaj[512]; // mesaj catre client
-  char clientMsg[512]; // comanda de la client
-
+  char mesaj[512]; 
+  char clientMsg[512]; 
   pid_t childpid;
 
-  //creeaza socket-ul pentru server
   serverFd = socket(AF_INET, SOCK_STREAM, 0);
   if (serverFd < 0) {
     printf("[-]Error in connection..\n");
@@ -303,7 +255,6 @@ void * inet_main(void * args) {
   }
   printf("[+]Server Socket is created.\n");
 
-  //configura serverul pentru clienti
   memset( & serverAddr, '\0', sizeof(serverAddr));
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(INETPORT);
@@ -317,69 +268,69 @@ void * inet_main(void * args) {
     printf("[+]Bind to port %d\n", INETPORT);
   }
 
-  ///server ul trece in mod ascultare
+  
   if (listen(serverFd, 10) == 0) {
     printf("[+]Listening....\n");
   } else {
     printf("[-]Error in binding.\n");
   }
 
-  //initializeaza lista de clienti
-  for (i = 0; i < maxClient; i++) {
-    clientList[i].fd = 0;
-  }
+ 
+  // for (i = 0; i < maxClient; i++) {
+  //   clientList[i].fd = 0;
+  // }
 
-  //deschide fisierul de ip-uri blocate pentru a citi si a adauga
+  
 
-  char * blockedSpec = "../theServer/blockedIPs.txt";
-  fileBlocked = fopen(blockedSpec, "a+");
-  if (!fileBlocked) {
-    printf("INET * could not open the blocked ip's file\n");
-  } else {
-    printf("INET - blocked ip's:\n\n");
-    while (fgets(blockedIps[numBlocked], MAXBLOCKED, fileBlocked)) {
-      printf("%s", blockedIps[numBlocked]);
-      numBlocked++;
-    }
-  }
+  // char * blockedSpec = "../theServer/blockedIPs.txt";
+  // fileBlocked = fopen(blockedSpec, "a+");
+  // if (!fileBlocked) {
+  //   printf("INET * could not open the blocked ip's file\n");
+  // } else {
+  //   printf("INET - blocked ip's:\n\n");
+  //   while (fgets(blockedIps[numBlocked], MAXBLOCKED, fileBlocked)) {
+  //     printf("%s", blockedIps[numBlocked]);
+  //     numBlocked++;
+  //   }
+  // }
 
-  FD_ZERO( & readSet); // seteaza bit-ul pe 0
-  FD_SET(serverFd, & readSet); //seteaza serverFd cu readSet care are bitii pe 0(initializare)
+  FD_ZERO( & readSet); 
+  FD_SET(serverFd, & readSet); 
   maxFd = serverFd + 1;
   addr_size = sizeof(clientAddr);
 
   while (1) {
 
     printf("INET - ready for ordinary clients to connect().\n");
-    FD_SET(serverFd, & readSet); //probabil nu este necesar dar fara da eroare
+    FD_SET(serverFd, & readSet); 
     numReady = select(maxFd + 1, & readSet, NULL, NULL, NULL);
 
-    if (FD_ISSET(serverFd, & readSet)) //conexiune client
+    if (FD_ISSET(serverFd, & readSet)) 
     {
       clientFd = accept(serverFd, (struct sockaddr * ) & clientAddr, & addr_size);
       char * clientIP = inet_ntoa(clientAddr.sin_addr);
       printf("INET - accepted connection. fd = %d, IP = %s, will check if it is blocked.\n", clientFd, clientIP);
 
-      int isBlocked = 0;
+      //int isBlocked = 0;
 
-      //parseaza lista de ip-uri blocate si verifica daca e blocat
-      for (i = 0; i < NUM_MAX_CLIENTS; i++) {
-        if (!strcmp(clientIP, blockedIps[i])) {
-          isBlocked = 1;
-          close(clientFd);
-          printf("INET - this IP: %s is blocked. connection request denied.\n", clientIP);
-          break;
-        }
-      }
+      
+      //for (i = 0; i < NUM_MAX_CLIENTS; i++) {
+        //if (!strcmp(clientIP, blockedIps[i])) {
+         // isBlocked = 1;
+         // close(clientFd);
+         // printf("INET - this IP: %s is blocked. connection request denied.\n", clientIP);
+         // break;
+        //}
+     // }
 
-      if (!isBlocked) // adauga la lista clientilor
+      //if (!isBlocked) 
       {
-        printf("INET - the IP: %s is not blocked.\n", clientIP);
+       // printf("INET - the IP: %s is not blocked.\n", clientIP);
 
-        //adauga la lista clientilor
+        
         for (i = 0; i < NUM_MAX_CLIENTS; i++) {
           if (clientList[i].fd == 0) {
-            clientList[i].fd = clientFd; //salveaza fd
+            clientList[i].fd = clientFd; 
             strcpy(clientList[i].IP, clientIP);
             clientList[i].port = clientAddr.sin_port;
             if (i >= maxClient)
@@ -393,7 +344,7 @@ void * inet_main(void * args) {
           exit(1);
         }
 
-        //pune noul clientfd in lista de readSet
+        
         FD_SET(clientFd, & readSet);
 
         if (clientFd > maxFd)
@@ -401,11 +352,10 @@ void * inet_main(void * args) {
 
       }
       if (--numReady <= 0)
-        continue; //intoarce te la select
-
+        continue; 
     }
 
-    //daca client-ul s-a conectat atunci realizam rezervarea
+    
     for (i = 0; i < NUM_MAX_CLIENTS; i++) {
       if (clientList[i].fd <= 0)
         continue;
@@ -418,9 +368,9 @@ void * inet_main(void * args) {
           clientList[i].fd = 0;
         } else {
           printf("INET - received message: %s from client with IP: %s, fd = %d.\n", clientMsg, clientList[i].IP, clientList[i].fd);
-          int len = processClientRequest(clientList[i].fd, clientMsg, mesaj);
 
-          numSent = send(clientList[i].fd, mesaj, len, 0); // trimite mesajul inapoi la client
+          int len = processClientRequest(clientList[i].fd, clientMsg, mesaj);
+          numSent = send(clientList[i].fd, mesaj, len, 0); 
           if (numSent < 0) {
             perror("UNIX send() error..");
             break;
@@ -433,7 +383,7 @@ void * inet_main(void * args) {
   }
 }
 
-char* createForecastString(struct Forecast forecast){
+char * createForecastString(struct Forecast forecast) {
   char result[1024];
   char wind[10];
   char temperature[10];
@@ -448,144 +398,158 @@ char* createForecastString(struct Forecast forecast){
   strcat(result, temperature);
   strcat(result, "\nPresiune: ");
   strcat(result, pressure);
-   strcat(result, "\nViteza vantului: ");
+  strcat(result, "\nViteza vantului: ");
   strcat(result, wind);
-
-
 
 }
 
-struct Forecast createForecast(){
+void sentFile(int sockfd) {
+  char buff[1024];
 
 
-  FILE *fp;
+  FILE * fp;
+  fp = fopen("Raport.json", "r"); 
+  if (fp == NULL) {
+    printf("Error IN Opening File .. \n");
+    return;
+  }
+
+  while (fgets(buff, 1024, fp) != NULL) 
+    write(sockfd, buff, sizeof(buff)); 
+
+  fclose(fp); 
+
+  printf("File Sent successfully !!! \n");
+
+}
+
+struct Forecast createForecast() {
+
+  FILE * fp;
   struct Forecast forecast;
 
   char buffer[30000];
-  struct json_object *parsed_json;
-  struct json_object *currently;
-  struct json_object *summary;
-  struct json_object *temperature;  
-  struct json_object *uvIndex;
-  struct json_object *wind;
-  struct json_object *pressure;
-  
-  fp = fopen("Raport.json","r");
+  struct json_object * parsed_json;
+  struct json_object * currently;
+  struct json_object * summary;
+  struct json_object * temperature;
+  struct json_object * uvIndex;
+  struct json_object * wind;
+  struct json_object * pressure;
+
+  fp = fopen("Raport.json", "r");
   fread(buffer, 30000, 1, fp);
   fclose(fp);
 
   parsed_json = json_tokener_parse(buffer);
 
-  json_object_object_get_ex(parsed_json, "currently", &currently);
+  json_object_object_get_ex(parsed_json, "currently", & currently);
 
-  json_object_object_get_ex(currently, "summary", &summary);
-  json_object_object_get_ex(currently, "temperature", &temperature);
-  json_object_object_get_ex(currently, "uvIndex", &uvIndex);
-  json_object_object_get_ex(currently, "pressure", &pressure);
-  json_object_object_get_ex(currently, "wind", &wind);
-  
+  json_object_object_get_ex(currently, "summary", & summary);
+  json_object_object_get_ex(currently, "temperature", & temperature);
+  json_object_object_get_ex(currently, "uvIndex", & uvIndex);
+  json_object_object_get_ex(currently, "pressure", & pressure);
+  json_object_object_get_ex(currently, "wind", & wind);
 
-    strcpy(forecast.summary,json_object_get_string(summary));
-    forecast.temperature = json_object_get_double (temperature);
-    forecast.uvIndex = json_object_get_int (uvIndex);
-    forecast.pressure = json_object_get_double(pressure);
-    forecast.windSpeed = json_object_get_double (wind);
+  strcpy(forecast.summary, json_object_get_string(summary));
+  forecast.temperature = json_object_get_double(temperature);
+  forecast.uvIndex = json_object_get_int(uvIndex);
+  forecast.pressure = json_object_get_double(pressure);
+  forecast.windSpeed = json_object_get_double(wind);
   //printf("Age: %d\n", json_object_get_int(age));
   //printf("time: %d\n", json_object_get_int(time));
-    return forecast;
+  return forecast;
 }
 
+void sendAPIRequest(char * coordinates) {
+  CURL * curl;
+  FILE * fp;
+  int result;
 
-void sendAPIRequest(char* coordinates){
-    CURL *curl;
-    FILE *fp;
-    int result;
+  char target[100] = DARK_SKY_API_URL;
+  strcat(target, coordinates);
 
-    char target[100] = DARK_SKY_API_URL;
-    strcat(target, coordinates);
+  printf("%s\n", target);
 
-    printf("%s\n", target);
+  fp = fopen("Raport.json", "wb");
 
-    fp = fopen("Raport.json", "wb");
+  curl = curl_easy_init();
 
-    curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_URL, target);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+  curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
-    curl_easy_setopt(curl, CURLOPT_URL, target);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+  result = curl_easy_perform(curl);
 
-    result = curl_easy_perform(curl);
+  if (result == CURLE_OK)
+    printf("Download successfull!\n");
+  else
+    printf("ERROR: %s\n", curl_easy_strerror(result));
 
-    if (result == CURLE_OK)
-        printf("Download successfull!\n");
-    else
-        printf("ERROR: %s\n", curl_easy_strerror(result));
+  fclose(fp);
 
-    fclose(fp);
-
-    curl_easy_cleanup(curl);
+  curl_easy_cleanup(curl);
 }
-
 
 int processClientRequest(int cliFd, char * buffer, char * msg) {
 
-  //initMovieArray();
-  //initRezervationArray();
-  int cmdType = buffer[0], movieChoice, hourChoice;
+  int cmdType = buffer[0];
   int numConnected = 0;
   char temp[512], user[512];
   int locationNumber;
   char latLonString[100];
   char lon[30];
   char lat[30];
-  char *line;
+  char * line;
   struct Location desiredLocation;
   struct Forecast forecast;
 
   printf("\n UNIX = comanda primita = %s, type: %c.\n", buffer, cmdType);
-  bzero(msg, strlen(msg)); //msg este umplut cu strlen(msg) de zero
+  bzero(msg, strlen(msg)); 
   strcat(msg, "\n");
 
   switch (cmdType) {
   case '1':
-      strcat(msg, createStringFromLocationsFIle());
-    
+    strcat(msg, createStringFromLocationsFIle());
+
     break;
   case '2':
-     locationNumber = buffer[1] - '0';
-     printf("%d\n", locationNumber);
-     line = getNthLineFromFile(locationNumber);
-     desiredLocation = createLocation(line);
-     snprintf(lat, 50, "%lf", desiredLocation.lat);
-     snprintf(lon, 50, "%lf", desiredLocation.lon);
-     strcpy(latLonString, lon);
-     strcat(latLonString, ",");
-     strcat(latLonString, lat);
-     
-     sendAPIRequest(latLonString);
-     forecast = createForecast();
-     strcpy(msg, "\n");
-     strcat(msg, desiredLocation.name);
-     strcat(msg, createForecastString(forecast));
+    locationNumber = buffer[1] - '0';
+    printf("%d\n", locationNumber);
+    line = getNthLineFromFile(locationNumber);
+    desiredLocation = createLocation(line);
+    snprintf(lat, 50, "%lf", desiredLocation.lat);
+    snprintf(lon, 50, "%lf", desiredLocation.lon);
+    strcpy(latLonString, lon);
+    strcat(latLonString, ",");
+    strcat(latLonString, lat);
 
-     
-     break;
+    sendAPIRequest(latLonString);
+    forecast = createForecast();
+    strcpy(msg, "\n");
+    strcat(msg, desiredLocation.name);
+    strcat(msg, createForecastString(forecast));
+
+    break;
 
   case '3':
-    sprintf(temp, "%c%c", buffer[1], buffer[2]);
-    movieChoice = atoi(temp);
-    for (int i = 0; i < nr_movies; i++) {
-      if (movieChoice == i + 1) {
-        //sprintf(temp, "\nFilm: %s\n 1.%s\n 2.%s\n 3.%s\n", movieArray[i].title, movieArray[i].firstHour, movieArray[i].secondHour, movieArray[i].lastHour);
-        strcat(msg, temp);
-      }
-    }
+    locationNumber = buffer[1] - '0';
+    printf("%d\n", locationNumber);
+    line = getNthLineFromFile(locationNumber);
+    desiredLocation = createLocation(line);
+    snprintf(lat, 50, "%lf", desiredLocation.lat);
+    snprintf(lon, 50, "%lf", desiredLocation.lon);
+    strcpy(latLonString, lon);
+    strcat(latLonString, ",");
+    strcat(latLonString, lat);
+
+    sendAPIRequest(latLonString);
+
+    sentFile(cliFd);
+
     break;
-  case '5':
-    //strcat(msg, (char * )(sizeof(movieArray) / sizeof(movieArray[0])));
-    break;
+
   default:
-    //afisare mesaj eroare
     printf("Command is invalid, it will be ignored..\n");
     break;
   }
@@ -593,40 +557,31 @@ int processClientRequest(int cliFd, char * buffer, char * msg) {
   return strlen(msg);
 
 }
-char* getNthLineFromFile (int lineNumber){
+char * getNthLineFromFile(int lineNumber) {
 
-
- const char filename[] = "filme.txt";
-FILE *file = fopen(filename, "r");
-int count = 0;
-if ( file != NULL )
-{
-    char line[256]; /* or other suitable maximum line size */
-   char* buffer;
-    while (fgets(line, sizeof line, file) != NULL) /* read a line */
-    {
-        if (count == lineNumber -1)
-        {
-            buffer =(char*)malloc(sizeof(char) * strlen(line));
-      strcpy(buffer, line);
-      return buffer;
-        }
-        else
-        {
-            count++;
-        }
+  const char filename[] = "locations.txt";
+  FILE * file = fopen(filename, "r");
+  int count = 0;
+  if (file != NULL) {
+    char line[256]; 
+    char * buffer;
+    while (fgets(line, sizeof line, file) != NULL)  {
+      if (count == lineNumber - 1) {
+        buffer = (char * ) malloc(sizeof(char) * strlen(line));
+        strcpy(buffer, line);
+        return buffer;
+      } else {
+        count++;
+      }
     }
     fclose(file);
-}
-else
-{
-    //file doesn't exist
-}
-  
+  } else {
+    
+  }
+
 }
 
-struct Location createLocation (char* line){
-
+struct Location createLocation(char * line) {
 
   struct Location location;
   char buff[100];
@@ -634,92 +589,81 @@ struct Location createLocation (char* line){
   int init_size = strlen(buff);
   char delim[] = " ";
 
-  char *ptr = strtok(buff, delim);
+  char * ptr = strtok(buff, delim);
   ptr = strtok(NULL, delim);
-  
+
   strcpy(location.name, ptr);
-  
+
   double lon;
   ptr = strtok(NULL, delim);
-  sscanf(ptr, "%lf", &lon);
+  sscanf(ptr, "%lf", & lon);
   location.lon = lon;
 
   double lat;
   ptr = strtok(NULL, delim);
-  sscanf(ptr, "%lf", &lat);
+  sscanf(ptr, "%lf", & lat);
   location.lat = lat;
 
-
-return location;
-  
-
-
+  return location;
 
 }
 
-char* createStringFromLocationsFIle() {
- long length;
-FILE * f = fopen ("filme.txt", "rb");
-char* buffer = 0;
+char * createStringFromLocationsFIle() {
+  long length;
+  FILE * f = fopen("locations.txt", "rb");
+  char * buffer = 0;
 
-if (f)
-{
-  fseek (f, 0, SEEK_END);
-  length = ftell (f);
-  fseek (f, 0, SEEK_SET);
-  buffer = malloc (length);
-  if (buffer)
-  {
-    fread (buffer, 1, length, f);
+  if (f) {
+    fseek(f, 0, SEEK_END);
+    length = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    buffer = malloc(length);
+    if (buffer) {
+      fread(buffer, 1, length, f);
+    }
+    fclose(f);
   }
-  fclose (f);
+
+  return buffer;
 }
-
-return buffer;
-}
-
-
-
 
 int main() {
-  int inetPort, soapPort;
-    pthread_t
-    unixThread, // UNIX Thread: componenta UNIX
-    inetThread, // INET Thread: componenta INET
-    soapThread; // SOAP Thread: componenta SOAP
-  
-    inetPort = INETPORT;
-  
-    unlink(UNIX_FILE);
-    pthread_create( & unixThread, NULL, unix_main, UNIXSOCKET);
-  
-    inetPort = INETPORT; //portul utilizat pentru inet
-    pthread_create( & inetThread, NULL, inet_main, & inetPort);
-  
-    soapPort = SOAP_PORT; //portul utilizat pentru soap
-    //  pthread_create (&soapThread, NULL, soap_main, &soapPort);
-  
-    pthread_join(unixThread, NULL);
-    pthread_join(inetThread, NULL);
-    //  pthread_join(soapThread, NULL);
-    unlink(UNIX_FILE);
-  
+  int inetPort;
+  pthread_t
+  unixThread, // UNIX Thread: componenta UNIX
+  inetThread, // INET Thread: componenta INET
+  soapThread; // SOAP Thread: componenta SOAP
+
+  inetPort = INETPORT;
+
+  unlink(UNIX_FILE);
+  pthread_create( & unixThread, NULL, unix_main, UNIXSOCKET);
+
+  inetPort = INETPORT; //portul utilizat pentru inet
+  pthread_create( & inetThread, NULL, inet_main, & inetPort);
+
+  //portul utilizat pentru soap
+  //  pthread_create (&soapThread, NULL, soap_main, &soapPort);
+
+  pthread_join(unixThread, NULL);
+  pthread_join(inetThread, NULL);
+  //  pthread_join(soapThread, NULL);
+  unlink(UNIX_FILE);
+
   // char *str;
   // str = createStringFromLocationsFIle();
   // printf("%s", str);
-  
-  
 
   // char *loc;
-  
+
   // loc = getNthLineFromFile(3);
   // struct Location location = createLocation(loc);
   // printf ("%s", location.name);
-  
+
   // struct Forecast forecast = createForecast();
   // char* result;
   // result = createForecastString(forecast);
   // printf("%s\n", result);
-    // sendAPIRequest("45,25");
+  // sendAPIRequest("45,25");
   return 0;
 }
