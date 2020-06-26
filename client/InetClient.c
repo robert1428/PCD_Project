@@ -28,7 +28,7 @@ void recvFile(int sockfd)
   char buff[1024];
 
   FILE *fp;
-  fp = fopen("raport", "w");
+  fp = fopen("Raport.json", "w");
 
   if (fp == NULL)
   {
@@ -42,7 +42,7 @@ void recvFile(int sockfd)
   }
 
   printf("File received successfully !! \n");
-  printf("New File created is raport! \n");
+  printf("New File created is Raport.json! \n");
   fclose(fp);
 }
 
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     printf("\tAPLICATIE PROGNOZA METEO\n");
     printf("1 - Afiseaza locatiile disponibile\n");
     printf("2 - Afiseaza prognoza meteo pentru o locatie\n");
-    printf("3 - Descarca raport detaliat\n");
+    printf("3 - Descarca Raport.json detaliat\n");
     printf("0 - Terminare program.\n");
     printf("Your choice: ");
     scanf("%c", choice);
