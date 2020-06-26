@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 
     printf("  Menu administrare server UNIX: \n\n");
     printf("  1 - Afisare fd-uri clienti INET. \n");
-    printf("  2 - Add mew location. \n");
+    printf("  2 - Add new location. \n");
     printf("  0 - End application.  \n");
 
     printf("Your choice = ");
@@ -75,12 +75,15 @@ int main(int argc, char *argv[])
       break;
     case '2':
       strcpy(mesaj, "2");
+
       printf("\n Enter location name ");
       scanf("%s", locationName);
-      printf("\n Enter location longitude ");
-      scanf("%s", longitude);
+
       printf("\n Enter location latitude ");
       scanf("%s", latitude);
+
+      printf("\n Enter location longitude ");
+      scanf("%s", longitude);
 
       strcat(mesaj, " ");
       strcat(mesaj, locationName);
