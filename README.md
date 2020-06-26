@@ -39,43 +39,11 @@ In general Aplicatiile de tip client vor face diferite cereri catre aplicatia de
 > Terminal 1
 
 ```
-$gcc TCP_server.c -o TCP_server
-$./TCP_server
-Socket successfully created..
-Socket successfully binded..
-Server listening...
+gcc -pthread -o Server Server.c -lcurl -ljson-c
 ```
 
 > Terminal 2
 
 ```
-$gcc TCP_client.c -o TCP_client
-$./TCP_client
-Socket successfully created..
-connected to the server..
-Enter the string : ping
+$gcc InetClient.c -o InetClient
 ```
-
-> Terminal 1
-
-```
-From client: ping
-	 To client : pong
-```
-
-> Terminal 2
-
-```
-From Server : pong
-Enter the string :
-```
-
-## Fetch weather
-
-> Terminal 1
-
-```
-$gcc -pthread -o Server Server.c -lcurl -ljson-c
-```
-
-data => numele fisierului pentru output
