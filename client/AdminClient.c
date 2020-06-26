@@ -14,10 +14,11 @@
 
 #define SERVER_FILE "/tmp/unixFile"
 
-# define MAX_MSG 512
-# define MIN_MSG 8
+#define MAX_MSG 512
+#define MIN_MSG 8
 
-int main(int argc, char * argv[]) {
+int main(int argc, char *argv[])
+{
 
   int clientFd, err, numBytes, rc, i = 1;
   char buffer[512];
@@ -30,23 +31,28 @@ int main(int argc, char * argv[]) {
   char mesaj[128];
 
   clientFd = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (clientFd < 0) {
+  if (clientFd < 0)
+  {
     perror("Erorr creating socket()..");
   }
 
-  memset( & serverAddr, 0, sizeof(serverAddr));
+  memset(&serverAddr, 0, sizeof(serverAddr));
   serverAddr.sun_family = AF_UNIX;
   strcpy(serverAddr.sun_path, SERVER_FILE);
 
-  err = connect(clientFd, (struct sockaddr * ) & serverAddr, SUN_LEN( & serverAddr)); // conectare la server
-  if (err < 0) {
+  err = connect(clientFd, (struct sockaddr *)&serverAddr, SUN_LEN(&serverAddr)); // conectare la server
+  if (err < 0)
+  {
     printf("\n Error connecting to UNIX server\n");
     exit(1);
-  } else {
+  }
+  else
+  {
     printf("\n Admin client connected \n");
   }
 
-  while (1) {
+  while (1)
+  {
 
     printf("  Menu administrare server UNIX: \n\n");
     printf("  1 - Afisare fd-uri clienti INET. \n");
@@ -56,12 +62,14 @@ int main(int argc, char * argv[]) {
     printf("Your choice = ");
     scanf("%s", choice);
 
-    if ((choice[0] < '0' || choice[0] > '5')) {
+    if ((choice[0] < '0' || choice[0] > '5'))
+    {
       printf("\nPlease choose a valid option \n\n");
       continue;
     }
 
-    switch (choice[0]) {
+    switch (choice[0])
+    {
     case '1':
       strcpy(mesaj, "1 000");
       break;
@@ -91,19 +99,25 @@ int main(int argc, char * argv[]) {
     }
 
     numBytes = send(clientFd, mesaj, strlen(mesaj), 0);
-    if (numBytes <= 0) {
+    if (numBytes <= 0)
+    {
       perror("send() failed");
     }
 
     rc = recv(clientFd, buffer, MAX_MSG, 0);
-    if (rc < 0) {
+    if (rc < 0)
+    {
       perror("recv() failed..");
-    } else if (rc == 0) {
-      printf("Deconectat de la serverul UNIX.. \n");
-    } else {
+    }
+    else if (rc == 0)
+    {
+      printf("Deconectat de la Server .. \n");
+    }
+    else
+    {
 
       buffer[rc] = 0;
-      printf("\n Mesaj de la server UNIX: %s\n", buffer);
+      printf("\n Mesaj de la server : %s\n", buffer);
     }
 
     printf("\n Apasa o tasta pentru a continua \n");

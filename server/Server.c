@@ -45,7 +45,6 @@
 #define UNIX_FILE "/tmp/unixFile"
 
 #define INETPORT 18081
-#define SOAPPORT 18082
 #define UNIXSOCKET "/tmp/unixds"
 
 #define MAXBLOCKED 128
@@ -96,7 +95,7 @@ char *createForecastString(struct Forecast forecast);
 void *unix_main(void *args)
 {
 
-  printf("[+]UNIX server is running\n");
+  printf("[+]Server is running\n");
 
   int serverFd = -1, clientFd = -2;
   int error, nBytes, numSent;
@@ -108,25 +107,37 @@ void *unix_main(void *args)
 
   if (serverFd < 0)
   {
-    perror("UNIX socket() error..");
+    perror("Server socket() error..");
   }
 
   memset(&serverAddr, 0, sizeof(serverAddr));
   serverAddr.sun_family = AF_UNIX;
   strcpy(serverAddr.sun_path, UNIX_FILE);
 
+  int opt = 1;
+  if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
+  {
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
+  }
+  if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEPORT, (char *)&opt, sizeof(opt)) < 0)
+  {
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
+  }
+
   error = bind(serverFd, (struct sockaddr *)&serverAddr, SUN_LEN(&serverAddr));
 
   if (error < 0)
   {
-    perror("UNIX bind() error..");
+    perror("Server bind() error..");
   }
 
   error = listen(serverFd, 10);
 
   if (error < 0)
   {
-    perror("UNIX listen() error..");
+    perror("Server listen() error..");
   }
   int tries = 10;
   while (tries)
@@ -136,7 +147,7 @@ void *unix_main(void *args)
     {
       if ((clientFd = accept(serverFd, NULL, NULL)) == -1)
       {
-        perror("UNIX accept() error..\n");
+        perror("Server accept() error..\n");
         break;
       }
     }
@@ -145,27 +156,27 @@ void *unix_main(void *args)
       while ((nBytes = read(clientFd, cmdClient, sizeof(cmdClient))) > 0)
       {
         cmdClient[nBytes] = 0;
-        printf("UNIX = read %d bytes: %s\n", nBytes, cmdClient);
+        printf("Server = read %d bytes: %s\n", nBytes, cmdClient);
 
         int len = processUnixClientRequest(nBytes, cmdClient, mesaj);
 
         numSent = send(clientFd, mesaj, len, 0);
         if (numSent < 0)
         {
-          perror("UNIX send() error..");
+          perror("Server send() error..");
           break;
         }
       }
       if (nBytes < 0)
       {
-        perror("UNIX client read error, the connection will be closed.\n");
+        perror("Server client read error, the connection will be closed.\n");
         close(clientFd);
         clientFd = -2;
         continue;
       }
       else if (nBytes == 0)
       {
-        printf("UNIX ** The client closed the connection.\n");
+        printf("Server ** The client closed the connection.\n");
         close(clientFd);
         clientFd = -2;
         continue;
@@ -235,6 +246,7 @@ int processUnixClientRequest(int numChars, char *buffer, char *msg)
   return strlen(msg);
 }
 
+// INET
 void *inet_main(void *args)
 {
 
@@ -383,7 +395,7 @@ void *inet_main(void *args)
           numSent = send(clientList[i].fd, mesaj, len, 0);
           if (numSent < 0)
           {
-            perror("UNIX send() error..");
+            perror("Server send() error..");
             break;
           }
         }
@@ -401,8 +413,8 @@ char *createForecastString(struct Forecast forecast)
   strcpy(result, "\n");
   strcat(result, forecast.summary);
   strcat(result, "\nTemperatura: ");
-  snprintf(wind, 10, "%.2lf", forecast.windSpeed);
-  snprintf(temperature, 10, "%.2lf", forecast.temperature);
+  snprintf(wind, 10, "%.2lf km/h", forecast.windSpeed);
+  snprintf(temperature, 10, "%.2lf C", ((forecast.temperature - 32) * 5 / 9));
   snprintf(pressure, 10, "%.2lf", forecast.pressure);
 
   strcat(result, temperature);
@@ -417,7 +429,7 @@ void sentFile(int sockfd)
   char buff[1024];
 
   FILE *fp;
-  fp = fopen("Raport.json", "r");
+  fp = fopen("raport", "r");
   if (fp == NULL)
   {
     printf("Error IN Opening File .. \n");
@@ -447,7 +459,7 @@ struct Forecast createForecast()
   struct json_object *wind;
   struct json_object *pressure;
 
-  fp = fopen("Raport.json", "r");
+  fp = fopen("raport", "r");
   fread(buffer, 30000, 1, fp);
   fclose(fp);
 
@@ -482,7 +494,7 @@ void sendAPIRequest(char *coordinates)
 
   printf("%s\n", target);
 
-  fp = fopen("Raport.json", "wb");
+  fp = fopen("raport", "wb");
 
   curl = curl_easy_init();
 
@@ -516,7 +528,7 @@ int processClientRequest(int cliFd, char *buffer, char *msg)
   struct Location desiredLocation;
   struct Forecast forecast;
 
-  printf("\n UNIX = comanda primita = %s, type: %c.\n", buffer, cmdType);
+  printf("\n Server = comanda primita = %s, type: %c.\n", buffer, cmdType);
   bzero(msg, strlen(msg));
   strcat(msg, "\n");
 
@@ -647,15 +659,15 @@ char *createStringFromLocationsFIle()
   return buffer;
 }
 
+// MAIN
 int main()
 {
   int inetPort;
   pthread_t
-      unixThread, // UNIX Thread: componenta UNIX
-      inetThread, // INET Thread: componenta INET
-      soapThread; // SOAP Thread: componenta SOAP
+      unixThread, // UNIX Thread
+      inetThread, // INET Thread
 
-  inetPort = INETPORT;
+      inetPort = INETPORT;
 
   unlink(UNIX_FILE);
   pthread_create(&unixThread, NULL, unix_main, UNIXSOCKET);
