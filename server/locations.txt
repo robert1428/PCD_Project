@@ -1,13 +1,7 @@
 1. Timisoara 42.53423 42.312343
-2. Constanta
+2. Constanta 44.1598 28.6348
 3. Cluj-Napoca 42.53423 42.312343
-4. Brasov
-5. Oradea
-6. Iasi.
-7. Craiova
-aaaaaaaaaaaa2 location 1 22 location 1 2
-2 location 123 443
-2 locatie 123 123
-2 locatie 123 123
-2 locatie 123 123
-2 location 243 234
+4. Brasov 45.6580 25.6012
+5. Oradea 47.0465 21.9189
+6. Iasi. 47.1585 27.6014
+7. Craiova 44.3302 23.7949
